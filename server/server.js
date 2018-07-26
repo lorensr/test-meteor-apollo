@@ -1,7 +1,6 @@
 import { ApolloServer, gql } from 'apollo-server-express'
-import express from 'express'
 import { WebApp } from 'meteor/webapp'
-// import { getUser } from 'meteor/apollo'
+import { getUser } from 'meteor/apollo'
 
 const books = [
   {
@@ -36,24 +35,27 @@ const typeDefs = gql`
 // schema.  We'll retrieve books from the "books" array above.
 const resolvers = {
   Query: {
-    books: () => books
+    books: (x, y, { user }) => console.log(user) || books
   }
 }
 
-const apollo = new ApolloServer({
+const server = new ApolloServer({
   typeDefs,
-  resolvers
-  // context: ({ req }) => ({
-  //   user: getUser(req.headers.authorization)
-  // })
+  resolvers,
+  context: async ({ req }) => ({
+    user: await getUser(req.headers.authorization)
+  })
 })
 
-// server.listen().then(({ url }) => {
-//   console.log(`🚀  Server ready at ${url}`)
-// })
+server.applyMiddleware({
+  app: WebApp.connectHandlers,
+  path: '/graphql'
+})
 
-const app = express()
-
-apollo.applyMiddleware({ app, path: '/graphql' })
-
-WebApp.connectHandlers.use(app)
+// We are doing this work-around because Playground sets headers and WebApp also sets headers
+// Resulting into a conflict and a server side exception of "Headers already sent"
+WebApp.connectHandlers.use('/graphql', (req, res) => {
+  if (req.method === 'GET') {
+    res.end()
+  }
+})
